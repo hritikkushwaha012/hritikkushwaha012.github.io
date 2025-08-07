@@ -1,0 +1,52 @@
+name: Auto Deploy to Main GitHub Pages
+
+on:
+  push:
+    branches: [ main ]  # Trigger on push to main branch
+    paths-ignore:
+      - '.gitignore'
+      - '.github/**'  # Ignore workflow changes to prevent infinite loops
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout primary repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Git
+      run: |
+        git config --global user.name 'Auto Deploy Bot'
+        git config --global user.email 'hritikkushwaha012@users.noreply.github.com'
+    
+    - name: Clone main GitHub Pages repository
+      run: |
+        git clone https://${{ secrets.x }}@github.com/hritikkushwaha/hritikkushwaha.github.io.git main-site
+    
+    - name: Sync all files to main repository
+      run: |
+        # Remove old files (except .git directory)
+        find main-site/ -mindepth 1 -name '.git' -prune -o -type f -delete
+        find main-site/ -mindepth 1 -name '.git' -prune -o -type d -empty -delete
+        
+        # Copy all new files from primary to main site
+        cp -r * main-site/ 2>/dev/null || true
+        cp -r .??* main-site/ 2>/dev/null || true
+        
+        # Don't copy the .git directory
+        rm -rf main-site/.git/objects main-site/.git/refs 2>/dev/null || true
+    
+    - name: Commit and push to main repository
+      run: |
+        cd main-site
+        git add .
+        if git diff --staged --quiet; then
+          echo "No changes to deploy"
+        else
+          git commit -m "Auto-deploy from hritikkushwaha012/hritikkushwaha012.github.io - $(date '+%Y-%m-%d %H:%M:%S')"
+          git push origin main
+          echo "✅ Successfully deployed to hritikkushwaha.github.io"
+        fi
