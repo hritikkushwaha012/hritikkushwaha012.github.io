@@ -30,8 +30,12 @@ jobs:
       run: |
         # Remove old files (except .git directory and important files)
         cd main-site
-        find . -mindepth 1 -name '.git' -prune -o -name 'CNAME' -prune -o -type f -delete
-        find . -mindepth 1 -name '.git' -prune -o -name 'CNAME' -prune -o -type d -empty -delete
+        
+        # Delete files but preserve .git directory and CNAME
+        find . -maxdepth 1 -type f -not -name 'CNAME' -delete 2>/dev/null || true
+        find . -mindepth 2 -type f -not -path './.git/*' -delete 2>/dev/null || true
+        find . -mindepth 1 -type d -empty -not -name '.git' -delete 2>/dev/null || true
+        
         cd ..
         
         # Copy all new files from primary to main site (excluding sensitive files)
