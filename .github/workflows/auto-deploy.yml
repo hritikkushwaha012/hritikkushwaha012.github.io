@@ -4,8 +4,9 @@ on:
   push:
     branches: [ main ]  # Trigger on push to main branch
     paths-ignore:
+      - 'README.md'      # Ignore README changes
       - '.gitignore'
-      - '.github/**'  # Ignore workflow changes to prevent infinite loops
+      - '.github/**'     # Ignore workflow changes to prevent infinite loops
 
 jobs:
   deploy:
@@ -24,20 +25,29 @@ jobs:
     
     - name: Clone main GitHub Pages repository
       run: |
-        git clone https://${{ secrets.x }}@github.com/hritikkushwaha/hritikkushwaha.github.io.git main-site
+        git clone https://${{ secrets.DEPLOY_TOKEN }}@github.com/hritikkushwaha/hritikkushwaha.github.io.git main-site
     
     - name: Sync all files to main repository
       run: |
-        # Remove old files (except .git directory)
-        find main-site/ -mindepth 1 -name '.git' -prune -o -type f -delete
-        find main-site/ -mindepth 1 -name '.git' -prune -o -type d -empty -delete
+        # Remove old files (except .git directory and important files)
+        cd main-site
+        find . -mindepth 1 -name '.git' -prune -o -name 'CNAME' -prune -o -type f -delete
+        find . -mindepth 1 -name '.git' -prune -o -name 'CNAME' -prune -o -type d -empty -delete
+        cd ..
         
-        # Copy all new files from primary to main site
-        cp -r * main-site/ 2>/dev/null || true
-        cp -r .??* main-site/ 2>/dev/null || true
+        # Copy all new files from primary to main site (excluding sensitive files)
+        rsync -av --exclude='.git' --exclude='README.md' --exclude='.github' . main-site/
+    
+    - name: Preserve important GitHub Pages files
+      run: |
+        # Ensure CNAME file exists if you have a custom domain
+        # Uncomment and modify if you have a custom domain:
+        # echo "your-domain.com" > main-site/CNAME
         
-        # Don't copy the .git directory
-        rm -rf main-site/.git/objects main-site/.git/refs 2>/dev/null || true
+        # Create or update .gitignore for main site if needed
+        if [ ! -f "main-site/.gitignore" ]; then
+          echo "# Auto-generated gitignore" > main-site/.gitignore
+        fi
     
     - name: Commit and push to main repository
       run: |
@@ -45,8 +55,21 @@ jobs:
         git add .
         if git diff --staged --quiet; then
           echo "No changes to deploy"
+          echo "deploy_status=no_changes" >> $GITHUB_ENV
         else
-          git commit -m "Auto-deploy from hritikkushwaha012/hritikkushwaha012.github.io - $(date '+%Y-%m-%d %H:%M:%S')"
+          git commit -m "Auto-deploy from dev repo - $(date '+%Y-%m-%d %H:%M:%S')"
           git push origin main
           echo "✅ Successfully deployed to hritikkushwaha.github.io"
+          echo "deploy_status=success" >> $GITHUB_ENV
+        fi
+    
+    - name: Deploy Summary
+      run: |
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Source Repository:** hritikkushwaha012/hritikkushwaha012.github.io" >> $GITHUB_STEP_SUMMARY
+        echo "- **Target Repository:** hritikkushwaha/hritikkushwaha.github.io" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deploy Time:** $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status:** ${{ env.deploy_status }}" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ env.deploy_status }}" = "success" ]; then
+          echo "- **Live Site:** https://hritikkushwaha.github.io" >> $GITHUB_STEP_SUMMARY
         fi
